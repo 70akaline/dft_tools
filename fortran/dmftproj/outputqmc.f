@@ -755,7 +755,7 @@ C
                factor=srot(isym)%phase/2.d0
 C We remind that the field phase is (g-a) in this case.
 C Up/up block :
-               ephase=EXP(CMPLX(0.d0,factor))
+               ephase=EXP(CMPLX(0.d0,-factor))
 C As a result, ephase = -exp(i(alpha-gamma)/2)
                spinrot(1:2*l+1,1:2*l+1)=
      =           ephase*srot(isym)%rotrep(l,isrt)%mat(-l:l,-l:l)
@@ -771,7 +771,7 @@ C
                factor=srot(isym)%phase/2.d0
 C We remind that the field phase is (a+g) in this case.
 C Up/up block :
-               ephase=EXP(CMPLX(0.d0,factor))
+               ephase=EXP(CMPLX(0.d0,-factor))
 C As a result, ephase = -exp(-i(alpha+gamma)/2)
                spinrot(1:2*l+1,1:2*l+1)=
      =           ephase*srot(isym)%rotrep(l,isrt)%mat(-l:l,-l:l)
@@ -1302,7 +1302,7 @@ C
                factor=srot(isym)%phase/2.d0
 C We remind that the field phase is (g-a) in this case.
 C Up/up block :
-               ephase=EXP(CMPLX(0.d0,factor))
+               ephase=EXP(CMPLX(0.d0,-factor))
 C AS a result, ephase = -exp(i(alpha-gamma)/2)
                spinrot(1:2*l+1,1:2*l+1)=
      =           ephase*srot(isym)%rotrep(l,isrt)%mat(-l:l,-l:l)
@@ -1318,7 +1318,7 @@ C
                factor=srot(isym)%phase/2.d0
 C We remind that the field phase is 2pi-(alpha+gamma) in this case.
 C Up/up block :
-               ephase=EXP(CMPLX(0.d0,factor))
+               ephase=EXP(CMPLX(0.d0,-factor))
 C As a result, ephase = -exp(-i(alpha+gamma)/2)
                spinrot(1:2*l+1,1:2*l+1)=
      =           ephase*srot(isym)%rotrep(l,isrt)%mat(-l:l,-l:l)
