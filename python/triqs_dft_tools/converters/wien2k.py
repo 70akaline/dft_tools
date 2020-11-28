@@ -25,6 +25,7 @@ import numpy
 from h5 import *
 from .converter_tools import *
 import os.path
+import re
 
 
 class Wien2kConverter(ConverterTools):
@@ -76,6 +77,7 @@ class Wien2kConverter(ConverterTools):
         self.band_file = filename + '.outband'
         self.bandwin_file = filename + '.oubwin'
         self.struct_file = filename + '.struct'
+        self.struct_st_file = filename + '.struct_st'
         self.outputs_file = filename + '.outputs'
         self.pmat_file = filename + '.pmat'
         self.dft_subgrp = dft_subgrp
@@ -554,6 +556,37 @@ class Wien2kConverter(ConverterTools):
                 things_to_save.append('band_window')
 
                 R.close()  # Reading done!
+        # Read relevant data from .struct_st file
+        ######################################
+        # num_symmetries_st: Number of symmetries
+        # symmetry_line: line number where number of symmetries
+        #       should be printed in .struct file
+        # symmetries_to_find: array of symmetries that
+        #       should exist in .outputs
+
+        if (os.path.exists(self.struct_st_file)):
+            mpi.report("Reading input from %s..." % self.struct_st_file)
+            symmetry_line_pattern = re.compile("^.{4}\s*NUMBER OF SYMMETRY OPERATIONS")
+            symmetry_line = 0
+            n_symmetries_st = -1
+            with(open(self.struct_st_file, 'r')) as R:
+                for line in R:
+                    if symmetry_line_pattern.match(line):
+                        n_symmetries_st = int(line.split()[0])
+                        break
+                    symmetry_line += 1
+                symmetries_to_find = []
+                for i in range(n_symmetries_st):
+                    line = R.next()
+                    mat = numpy.zeros(shape = (3, 3), dtype = int)
+                    v = numpy.zeros(shape = (3, ), dtype = float)
+                    for j in range(3):
+                        mat[j] = [int(line[0:2]), int(line[2:4]), int(line[4:6])]
+                        v[j] = float(line[6:16])
+                        line = R.next()
+                    symmetries_to_find.append((mat, v))
+                    if(numpy.any(numpy.absolute(v) > 1e-10)):
+                        mpi.report("WARNING! Symmetry operation contains a translation, this might not be handled correctly!\nWe suggest you set up your structure so that it contains only r
 
         # Read relevant data from .struct file
         ######################################
@@ -576,6 +609,11 @@ class Wien2kConverter(ConverterTools):
                         [float(temp[30 + 10 * i:40 + 10 * i].strip()) for i in range(3)]) * numpy.pi / 180.0
                     things_to_save.extend(
                         ['lattice_type', 'lattice_constants', 'lattice_angles'])
+                    for line in range(4, symmetry_line):
+                        R.next()
+                    if n_symmetries_st != int(R.next()[0:4]):
+                        mpi.report("ERROR!! Number of symmetries printed in {} does not match the number of symmetries printed in {}\nPlease run \"x symmetry\" and copy self.struct_st_file 
+                        raise IOError
                 except IOError:
                     raise IOError("convert_misc_input: reading file %s failed" % self.struct_file)
 
@@ -588,24 +626,30 @@ class Wien2kConverter(ConverterTools):
             mpi.report("Reading input from %s..." % self.outputs_file)
 
             rot_symmetries = []
+            n_symmetries = 0
             with open(self.outputs_file) as R:
                 try:
-                    while 1:
-                        temp = R.readline().strip(' ').split()
-                        if (temp[0] == 'PGBSYM:'):
-                            n_symmetries = int(temp[-1])
-                            break
-                    for i in range(n_symmetries):
-                        while 1:
-                            if (R.readline().strip().split()[0] == 'Symmetry'):
-                                break
-                        sym_i = numpy.zeros((3, 3), dtype=float)
-                        for ir in range(3):
-                            temp = R.readline().strip().split()
-                            for ic in range(3):
-                                sym_i[ir, ic] = float(temp[ic])
-                        R.readline()
-                        rot_symmetries.append(sym_i)
+                    for line in R:
+                        if re.search("Symmetry operation", line):
+                            line = R.next()
+                            sym_i = numpy.zeros((3, 3), dtype=float)
+                            for i in range(3):
+                                sym_i[i] = numpy.array(line.split(), dtype = float)
+                                line = R.next()
+                            line = R.next()
+                            v = numpy.zeros(shape = (3,), dtype=float)
+                            mat = numpy.zeros((3, 3), dtype=int)
+                            for i in range(3):
+                                tmp = line.split()
+                                mat[i] = [int(float(tmp[0])), int(float(tmp[1])), int(float(tmp[2]))]
+                                v[i] = float(tmp[3])
+                                line = R.next()
+                            if numpy.any([numpy.array_equal(mat, m2f) and numpy.array_equal(v, v2f) for m2f, v2f in symmetries_to_find]):
+                                rot_symmetries.append(sym_i)
+                                n_symmetries += 1
+                    if n_symmetries != n_symmetries_st:
+                        mpi.report("ERROR!! Number of symmetries printed in {} does not match the number of symmetries printed in {}\nPlease run \"x symmetry\" and copy self.struct_st_file 
+                        raise IOError
                     things_to_save.extend(['n_symmetries', 'rot_symmetries'])
                     things_to_save.append('rot_symmetries')
                 except IOError:
